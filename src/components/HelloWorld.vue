@@ -1,57 +1,139 @@
 <template>
-  <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-vuex" target="_blank" rel="noopener">vuex</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
+  <div class="main">
+    <template v-if="pageProps && pageProps.url">
+      <div class="main__col main__col--first">
+        <qrCode :text="pageProps.url" label="Sprawdź na innym urządzeniu" />
+        <pagePreview :pageProps="pageProps" :previewScreenshot="previewScreenshot" />
+        <small>
+          Czas ładowania: <b>{{ pageProps.pgloadtime }}s</b>
+          <br />
+          Rozmiar HTML: <b>{{ pageSize }}</b>
+          <br />
+          Technologie: <b>{{ [pageProps.frameworks].join(",") }}</b>
+        </small>
+      </div>
+      <div class="main__col main__col--last">
+        <seo :seo="{ ...pageProps.seo, url: pageProps.url }" />
+      </div>
+    </template>
+    <template v-else>
+      <span>{{ status }}</span>
+    </template>
   </div>
 </template>
 
 <script>
-export default {
-  name: 'HelloWorld',
-  props: {
-    msg: String
-  }
-}
-</script>
+import pagePreview from "./pagePreview.vue";
+import qrCode from "./qrCode.vue";
+import Seo from "./seo.vue";
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
-<style scoped>
-h3 {
-  margin: 40px 0 0;
+export default {
+  name: "HelloWorld",
+  components: {
+    pagePreview,
+    qrCode,
+    Seo,
+  },
+  data() {
+    return {
+      pageProps: {},
+      previewScreenshot: "",
+      status: "Ładowanie...",
+    };
+  },
+  computed: {
+    pageSize() {
+      const units = ["bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+
+      let l = 0,
+        n = parseInt(this.pageProps.pagekbytes, 10) || 0;
+
+      while (n >= 1024 && ++l) {
+        n = n / 1024;
+      }
+
+      return n.toFixed(n < 10 && l > 0 ? 1 : 0) + " " + units[l];
+    },
+  },
+  methods: {
+    getData() {
+      browser.tabs.query({ currentWindow: true, active: true }).then((tabs) => {
+        browser.tabs
+          .sendMessage(tabs[0].id, { action: "init" })
+          .then(async (response) => {
+            this.pageProps = await response;
+          });
+        browser.tabs
+          .sendMessage(tabs[0].id, { action: "previewScreenshot" })
+          .then(async (response) => {
+            this.previewScreenshot = await response;
+          });
+      });
+    },
+  },
+  mounted() {
+    this.getData();
+    var count = 0;
+    if (this.pageProps && !this.pageProps.url) {
+      var intervalId = setInterval(() => {
+        if (this.pageProps && !this.pageProps.url) {
+          this.getData();
+          count = count + 1;
+          this.status =
+            count % 2 > 0
+              ? "Ładowanie..."
+              : "Problem podczas pobierania informacji o stronie";
+        } else {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      }, 2000);
+    }
+  },
+};
+</script>
+<style lang="scss">
+::-webkit-scrollbar {
+  width: 4px;
 }
-ul {
-  list-style-type: none;
-  padding: 0;
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #ffd90041;
 }
-li {
-  display: inline-block;
-  margin: 0 10px;
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #f9b000;
 }
-a {
-  color: #42b983;
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #f9b000;
+}
+.main {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  &__col {
+    max-width: 100%;
+    &--first {
+      height: 100%;
+      width: 25%;
+      display: flex;
+      align-items: flex-end;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    &--last {
+      height: 100%;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 0 0.3rem;
+    }
+  }
 }
 </style>
